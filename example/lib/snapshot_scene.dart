@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:arkit_plugin/arkit_plugin.dart';
 import 'package:arkit_plugin_example/util/ar_helper.dart';
 import 'package:flutter/material.dart';
@@ -25,7 +27,8 @@ class _SnapshotScenePageState extends State<SnapshotScenePage> {
         child: Icon(Icons.camera_alt),
         onPressed: () async {
           try {
-            final image = await arkitController.snapshot();
+            // final image = await arkitController.snapshot();
+            final image = await arkitController.getCapturedImage();
             await Navigator.push(
               context,
               MaterialPageRoute(
@@ -59,6 +62,8 @@ class SnapshotPreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 获取屏幕宽高
+    final size = MediaQuery.of(context).size;
     return Scaffold(
       appBar: AppBar(
         title: const Text('Image Preview'),
@@ -66,7 +71,14 @@ class SnapshotPreview extends StatelessWidget {
       body: Stack(
         fit: StackFit.expand,
         children: [
-          Image(image: imageProvider),
+          Transform.rotate(
+            angle: 90 * math.pi / 180,
+            child: Image(
+              image: imageProvider,
+              width: size.width,
+              height: size.height,
+            ),
+          ),
         ],
       ),
     );

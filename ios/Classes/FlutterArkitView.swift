@@ -1,5 +1,8 @@
 import ARKit
 import Foundation
+import RealityKit
+import SwiftUI
+import os
 
 class FlutterArkitView: NSObject, FlutterPlatformView {
     let sceneView: ARSCNView
@@ -7,6 +10,35 @@ class FlutterArkitView: NSObject, FlutterPlatformView {
 
     var forceTapOnCenter: Bool = false
     var configuration: ARConfiguration? = nil
+    
+    // 用于记录上一次的相机位置
+    var lastCameraPosition: simd_float3? = nil
+    var lastTimestamp: TimeInterval? = nil
+    
+    // 设定一个最小移动阈值 (单位：米)
+    let minPositionDelta: Float = 0.05
+    
+    // 速度阈值（米/秒）
+    let maxVelocity: Float = 1.0
+    
+    // 记录上一次提示“移动过快”的时间，避免频繁弹窗
+    var lastVelocityWarningTime: TimeInterval?
+    // 限制至少间隔多少秒后再提醒一次
+    let velocityWarningCoolDown: TimeInterval = 5.0
+    
+    // 已创建的四棱锥的位置（用于避免重复创建）
+    var createdPyramidsPositions: [simd_float3] = []
+    
+    var isRecording = false
+    
+    lazy var visionModel: VNCoreMLModel = {
+        do {
+            let model = try VNCoreMLModel(for: YOLOv3Tiny().model)
+            return model
+        } catch {
+            fatalError("无法加载 ML 模型: \(error)")
+        }
+    }()
 
     init(withFrame frame: CGRect, viewIdentifier viewId: Int64, messenger msg: FlutterBinaryMessenger) {
         sceneView = ARSCNView(frame: frame)
@@ -15,6 +47,7 @@ class FlutterArkitView: NSObject, FlutterPlatformView {
         super.init()
 
         sceneView.delegate = self
+        sceneView.session.delegate = self
         channel.setMethodCallHandler(onMethodCalled)
     }
 
@@ -107,6 +140,9 @@ class FlutterArkitView: NSObject, FlutterPlatformView {
             onGetSnapshotWithDepthData(result)
         case "cameraPosition":
             onGetCameraPosition(result)
+        case "setIsRecording":
+            setIsRecording(arguments!)
+            result(nil)
         default:
             result(FlutterMethodNotImplemented)
         }

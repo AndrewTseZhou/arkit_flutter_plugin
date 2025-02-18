@@ -1,9 +1,19 @@
 import ARKit
 import Foundation
+import RealityKit
+import SceneKit
 
 func createWorldTrackingConfiguration(_ arguments: [String: Any]) -> ARWorldTrackingConfiguration? {
     if ARWorldTrackingConfiguration.isSupported {
         let worldTrackingConfiguration = ARWorldTrackingConfiguration()
+        if let referenceObjects = ARReferenceObject.referenceObjects(inGroupNamed: "ARObjects", bundle: nil) {
+            worldTrackingConfiguration.detectionObjects = referenceObjects
+        } else {
+            print("Failed to load reference objects.")
+        }
+        if #available(iOS 13.4, *) {
+            worldTrackingConfiguration.sceneReconstruction = .meshWithClassification
+        }
         if let environmentTexturing = arguments["environmentTexturing"] as? Int {
             if environmentTexturing == 0 {
                 worldTrackingConfiguration.environmentTexturing = .none

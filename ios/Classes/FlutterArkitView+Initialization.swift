@@ -1,4 +1,5 @@
 import ARKit
+import RealityKit
 
 extension FlutterArkitView {
     func initalize(_ arguments: [String: Any], _: FlutterResult) {
@@ -33,6 +34,11 @@ extension FlutterArkitView {
         if let showWorldOrigin = arguments["showWorldOrigin"] as? Bool {
             if showWorldOrigin {
                 options |= ARSCNDebugOptions.showWorldOrigin.rawValue
+            }
+        }
+        if let showPhysicsBodies = arguments["showWireframe"] as? Bool {
+            if showPhysicsBodies {
+                options |= ARSCNDebugOptions.showWireframe.rawValue
             }
         }
         return ARSCNDebugOptions(rawValue: options)

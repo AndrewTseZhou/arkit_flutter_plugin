@@ -346,4 +346,10 @@ extension FlutterArkitView {
             result(nil)
         }
     }
+    
+    func setIsRecording(_ arguments: [String: Any]) {
+        if let recording = arguments["isRecording"] as? Bool {
+            isRecording = recording
+        }
+    }
 }

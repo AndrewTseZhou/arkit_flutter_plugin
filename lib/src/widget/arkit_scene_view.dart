@@ -40,6 +40,7 @@ typedef ARKitRotationResultHandler = void Function(
     List<ARKitNodeRotationResult> pans);
 typedef ARKitPinchGestureHandler = void Function(
     List<ARKitNodePinchResult> pinch);
+typedef ARKitImageUpdateHandler = void Function(Map<String, dynamic>? result);
 
 /// A widget that wraps ARSCNView from ARKit.
 class ARKitSceneView extends StatefulWidget {
@@ -281,6 +282,7 @@ class ARKitController {
   ARKitPinchGestureHandler? onNodePinch;
   ARKitPanResultHandler? onNodePan;
   ARKitRotationResultHandler? onNodeRotation;
+  ARKitImageUpdateHandler? onCameraImageUpdate;
 
   /// Called when a new node has been mapped to the given anchor.
   AnchorEventHandler? onAddNodeForAnchor;
@@ -552,6 +554,13 @@ class ARKitController {
         case 'coachingOverlayViewDidDeactivate':
           coachingOverlayViewDidDeactivate?.call();
           break;
+        case 'onCameraImageUpdate':
+          final data = Map<String, dynamic>.from(call.arguments);
+          onCameraImageUpdate?.call(data);
+          break;
+        case 'onMoveTooFast':
+          debugPrint('Move too fast');
+          break;
         default:
           if (debug) {
             debugPrint('Unknowm method ${call.method} ');
@@ -779,6 +788,10 @@ class ARKitController {
     } else {
       return null;
     }
+  }
+
+  Future<void> setIsRecording(bool isRecording) async {
+    await _channel.invokeMethod('setIsRecording', {'isRecording': isRecording});
   }
 
   Future<Vector3?> cameraPosition() async {
