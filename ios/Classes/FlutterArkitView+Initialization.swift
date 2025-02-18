@@ -75,6 +75,12 @@ extension FlutterArkitView {
             } else {
                 logPluginError("configuration is not supported on this device", toChannel: channel)
             }
+        case 5:
+            if #available(iOS 12.0, *) {
+                configuration = createObjectTrackingConfiguration(arguments)
+            } else {
+                logPluginError("configuration is not supported on this device", toChannel: channel)
+            }
         default:
             break
         }

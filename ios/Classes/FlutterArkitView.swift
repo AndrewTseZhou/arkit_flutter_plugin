@@ -1,6 +1,7 @@
 import ARKit
 import Foundation
 import RealityKit
+import UIKit
 import SwiftUI
 import os
 
@@ -10,37 +11,42 @@ class FlutterArkitView: NSObject, FlutterPlatformView {
 
     var forceTapOnCenter: Bool = false
     var configuration: ARConfiguration? = nil
-    
+
     // 用于记录上一次的相机位置
     var lastCameraPosition: simd_float3? = nil
     var lastTimestamp: TimeInterval? = nil
-    
+
     // 设定一个最小移动阈值 (单位：米)
     let minPositionDelta: Float = 0.05
-    
+
     // 速度阈值（米/秒）
     let maxVelocity: Float = 1.0
-    
+
     // 记录上一次提示“移动过快”的时间，避免频繁弹窗
     var lastVelocityWarningTime: TimeInterval?
     // 限制至少间隔多少秒后再提醒一次
     let velocityWarningCoolDown: TimeInterval = 5.0
-    
+
     // 已创建的四棱锥的位置（用于避免重复创建）
     var createdPyramidsPositions: [simd_float3] = []
-    
+
     var isRecording = false
-    
+    // 保存当前显示的线框节点引用
+    var currentWireframeNode: SCNNode?
+
     lazy var visionModel: VNCoreMLModel = {
         do {
-            let model = try VNCoreMLModel(for: YOLOv3Tiny().model)
+            let model = try VNCoreMLModel(for: MobileNetV2().model)
             return model
         } catch {
             fatalError("无法加载 ML 模型: \(error)")
         }
     }()
 
-    init(withFrame frame: CGRect, viewIdentifier viewId: Int64, messenger msg: FlutterBinaryMessenger) {
+    var cubeNode: SCNNode?
+//    var captureSession: ObjectCaptureSession?
+
+    init(withFrame frame: CGRect, viewIdentifier viewId: Int64,messenger msg: FlutterBinaryMessenger) {
         sceneView = ARSCNView(frame: frame)
         channel = FlutterMethodChannel(name: "arkit_\(viewId)", binaryMessenger: msg)
 
@@ -143,6 +149,10 @@ class FlutterArkitView: NSObject, FlutterPlatformView {
         case "setIsRecording":
             setIsRecording(arguments!)
             result(nil)
+        case "startObjectCapture":
+            startObjectCapture(arguments!)
+        case "stopObjectCapture":
+            stopObjectCapture(arguments!)
         default:
             result(FlutterMethodNotImplemented)
         }

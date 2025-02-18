@@ -3,6 +3,22 @@ import SceneKit
 import Foundation
 
 extension FlutterArkitView: ARSCNViewDelegate, ARSessionDelegate {
+    func createBoundingBox(forNode node: SCNNode) -> SCNNode {
+        let boxGeometry = SCNBox(width: 0.1, height: 0.1, length: 0.1, chamferRadius: 0)
+        let material = SCNMaterial()
+        material.diffuse.contents = UIColor.clear // 透明面
+        material.emission.contents = UIColor.white // 白色边框
+        boxGeometry.materials = [material]
+
+        let boxNode = SCNNode(geometry: boxGeometry)
+        node.addChildNode(boxNode)
+
+        // 让立方体框架围绕物体的边界
+        boxNode.position = SCNVector3(0, 0, 0)
+
+        return boxNode
+    }
+
     func session(_ session: ARSession, didUpdate frame: ARFrame) {
 //        // 可以在这里进行图像数据的处理，像保存图像或转化为图片格式
 //        let pixelBuffer = capturedImage
@@ -37,7 +53,7 @@ extension FlutterArkitView: ARSCNViewDelegate, ARSessionDelegate {
             let dy = currentPosition.y - lastPos.y
             let dz = currentPosition.z - lastPos.z
             let distance = sqrt(dx * dx + dy * dy + dz * dz)
-            
+
             // 当距离大于 minPositionDelta（阈值）时，认为有“明显移动”
             if distance > minPositionDelta {
                 // 说明相机确实移动了
@@ -51,18 +67,18 @@ extension FlutterArkitView: ARSCNViewDelegate, ARSessionDelegate {
                         generator.impactOccurred()
                     }
                 }
-                
+
                 lastCameraPosition = currentPosition
             }
-            
+
             let deltaTime = Float(currentTime - lastTime)
             guard deltaTime > 0 else {
                 lastTimestamp = currentTime
                 return
             }
-            
+
             let velocity = distance / deltaTime
-            
+
             // 如果超过阈值，弹出提醒
             if velocity > maxVelocity {
                 let now = currentTime
@@ -78,14 +94,28 @@ extension FlutterArkitView: ARSCNViewDelegate, ARSessionDelegate {
                 }
             }
             lastTimestamp = currentTime
-            
+
             // 1. 获取当前帧的图像
             let pixelBuffer = frame.capturedImage
-                
+
             // 2. 运行物体识别
             detectObjects(pixelBuffer: pixelBuffer)
         }
     }
+
+    func session(_ session: ARSession, didAdd anchors: [ARAnchor]) {
+            for anchor in anchors {
+                if let objectAnchor = anchor as? ARObjectAnchor {
+                    let node = SCNNode()
+                    let boxNode = createBoundingBox(forNode: node)
+                    cubeNode = boxNode
+
+                    // 将物体的 anchor 和框架同步
+                    node.transform = SCNMatrix4(objectAnchor.transform)
+                    sceneView.scene.rootNode.addChildNode(node)
+                }
+            }
+        }
 
     func session(_: ARSession, didFailWithError error: Error) {
         logPluginError("sessionDidFailWithError: \(error.localizedDescription)", toChannel: channel)
@@ -132,7 +162,7 @@ extension FlutterArkitView: ARSCNViewDelegate, ARSessionDelegate {
         }
         let params = prepareParamsForAnchorEvent(node, anchor)
         sendToFlutter("didAddNodeForAnchor", arguments: params)
-        
+
         if #available(iOS 13.4, *) {
 //            guard let meshAnchor = anchor as? ARMeshAnchor else { return }
 //            let geometry = createMeshGeometry(from: meshAnchor)
@@ -143,15 +173,15 @@ extension FlutterArkitView: ARSCNViewDelegate, ARSessionDelegate {
 //            let meshNode = createMeshNode(from: meshAnchor)
 //            node.addChildNode(meshNode)
         }
-        
+
         if let objectAnchor = anchor as? ARObjectAnchor {
             // 获取物体的尺寸
             let extent = objectAnchor.referenceObject.extent
             print("Object recognized with extent: \(extent)")
-            
+
             // 创建一个立方体框架
             let wireframeNode = createWireframe(extent: extent)
-            
+
             // 将框架添加到锚点对应的节点上
             node.addChildNode(wireframeNode)
         }
@@ -160,7 +190,7 @@ extension FlutterArkitView: ARSCNViewDelegate, ARSessionDelegate {
     func renderer(_: SCNSceneRenderer, didUpdate node: SCNNode, for anchor: ARAnchor) {
         let params = prepareParamsForAnchorEvent(node, anchor)
         sendToFlutter("didUpdateNodeForAnchor", arguments: params)
-        
+
         if #available(iOS 13.4, *) {
             // another way
 //            guard let meshAnchor = anchor as? ARMeshAnchor else { return }
@@ -170,14 +200,14 @@ extension FlutterArkitView: ARSCNViewDelegate, ARSessionDelegate {
 //            let meshNode = createMeshNode(from: meshAnchor)
 //            node.addChildNode(meshNode)
         }
-        
+
         if let objectAnchor = anchor as? ARObjectAnchor, let wireframeNode = node.childNodes.first {
             // 获取新的尺寸
             let extent = objectAnchor.referenceObject.extent
-            
+
             // 更新框架的几何体
             let newWireframeNode = createWireframe(extent: extent)
-            
+
             // 替换旧的框架
             wireframeNode.geometry = newWireframeNode.geometry
         }
@@ -203,7 +233,7 @@ extension FlutterArkitView: ARSCNViewDelegate, ARSessionDelegate {
     private func createMeshNode(from meshAnchor: ARMeshAnchor) -> SCNNode {
         // 提取网格几何数据
         let meshGeometry = meshAnchor.geometry
-        
+
         // 创建顶点数据
         let vertices = meshGeometry.vertices
         let vertexSource = SCNGeometrySource(
@@ -214,7 +244,7 @@ extension FlutterArkitView: ARSCNViewDelegate, ARSessionDelegate {
             dataOffset: vertices.offset,
             dataStride: vertices.stride
         )
-        
+
         // 创建面片索引数据
         let faces = meshGeometry.faces
         let faceData = Data(bytes: faces.buffer.contents(), count: faces.buffer.length)
@@ -224,20 +254,20 @@ extension FlutterArkitView: ARSCNViewDelegate, ARSessionDelegate {
             primitiveCount: faces.count,
             bytesPerIndex: faces.bytesPerIndex
         )
-        
+
         // 创建几何体
         let geometry = SCNGeometry(sources: [vertexSource], elements: [element])
-        
+
         // 设置材质（半透明绿色线框）
         let material = SCNMaterial()
         material.isDoubleSided = false // 关闭双面渲染
         material.fillMode = .lines // 线框模式
         material.diffuse.contents = UIColor.white
         geometry.materials = [material]
-        
+
         return SCNNode(geometry: geometry)
     }
-    
+
     // 添加四棱锥标识
     private func addPyramidInFrontOfCamera(_ frame: ARFrame, distance: Float = 0.1) {
         let cameraTransform = frame.camera.transform
@@ -305,12 +335,12 @@ extension FlutterArkitView: ARSCNViewDelegate, ARSessionDelegate {
         }
         return false
     }
-    
+
     func createWireframe(extent: SIMD3<Float>) -> SCNNode {
         let width = CGFloat(extent.x)
         let height = CGFloat(extent.y)
         let length = CGFloat(extent.z)
-        
+
         // 定义立方体的 8 个顶点
         let vertices: [SCNVector3] = [
             SCNVector3(-width / 2, -height / 2, -length / 2), // Bottom-left-back
@@ -322,25 +352,133 @@ extension FlutterArkitView: ARSCNViewDelegate, ARSessionDelegate {
             SCNVector3(width / 2, height / 2, length / 2),    // Top-right-front
             SCNVector3(-width / 2, height / 2, length / 2)    // Top-left-front
         ]
-        
+
         // 定义线的连接索引
         let indices: [UInt32] = [
             0, 1, 1, 2, 2, 3, 3, 0, // Bottom edges
             4, 5, 5, 6, 6, 7, 7, 4, // Top edges
             0, 4, 1, 5, 2, 6, 3, 7  // Vertical edges
         ]
-        
+
         // 创建几何数据源
         let vertexSource = SCNGeometrySource(vertices: vertices)
-        
+
         // 创建几何元素
         let indexData = Data(bytes: indices, count: indices.count * MemoryLayout<UInt32>.size)
         let element = SCNGeometryElement(data: indexData,
                                          primitiveType: .line, // 线段模式
                                          primitiveCount: indices.count / 2,
                                          bytesPerIndex: MemoryLayout<UInt32>.size)
-        
+
         // 创建几何体
+        let geometry = SCNGeometry(sources: [vertexSource], elements: [element])
+
+        // 设置线框材质
+        let material = SCNMaterial()
+        material.diffuse.contents = UIColor.red
+        material.isDoubleSided = true
+        geometry.materials = [material]
+
+        // 创建节点
+        let wireframeNode = SCNNode(geometry: geometry)
+        return wireframeNode
+    }
+
+    func createWireframe2(extent: SIMD3<Float>) -> SCNNode {
+        let width = CGFloat(extent.x)
+        let height = CGFloat(extent.y)
+        let depth = CGFloat(extent.z)
+
+        let box = SCNBox(width: width, height: height, length: depth, chamferRadius: 0)
+        let material = SCNMaterial()
+        material.diffuse.contents = UIColor.red
+        material.fillMode = .lines  // 线框模式
+        box.materials = [material]
+
+        let boxNode = SCNNode(geometry: box)
+        return boxNode
+    }
+
+    func detectObjects(pixelBuffer: CVPixelBuffer) {
+        print("detectObjects")
+        let request = VNCoreMLRequest(model: visionModel) { request, error in
+            guard let results = request.results as? [VNClassificationObservation],
+                    let firstResult = results.first else {
+                return
+            }
+
+            // 获取最高置信度的物体
+            let objectName = firstResult.identifier
+            let confidence = firstResult.confidence
+
+            DispatchQueue.main.async {
+                self.displayDetectedObject(name: objectName, confidence: confidence)
+            }
+        }
+
+        // 运行 Vision 物体检测
+        let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, options: [:])
+        DispatchQueue.global(qos: .userInteractive).async {
+            do {
+                try handler.perform([request])
+            } catch {
+                print("Vision 物体检测失败: \(error)")
+            }
+        }
+    }
+
+    func displayDetectedObject(name: String, confidence: Float) {
+        // 1. 如果场景中已经有一个立方体，则先移除它
+        if let oldNode = currentWireframeNode {
+            oldNode.removeFromParentNode()
+        }
+
+        // 2. 创建新的线框节点
+        let wireframeNode = createWireframeBox(width: 0.2, height: 0.2, length: 0.2)
+
+        // 3. 放到摄像头前方 0.5m 处（这里只做示例）
+        if let cameraTransform = sceneView.session.currentFrame?.camera.transform {
+            var translation = matrix_identity_float4x4
+            translation.columns.3.z = -0.5  // 在摄像头前方
+            wireframeNode.simdTransform = cameraTransform * translation
+        }
+
+        // 4. 将新的节点添加到场景
+        sceneView.scene.rootNode.addChildNode(wireframeNode)
+
+        // 5. 记录当前线框节点
+        currentWireframeNode = wireframeNode
+    }
+
+    
+    func createWireframeBox(width: CGFloat, height: CGFloat, length: CGFloat) -> SCNNode {
+        // 8 个顶点
+        let vertices: [SCNVector3] = [
+            SCNVector3(-width/2, -height/2, -length/2),
+            SCNVector3( width/2, -height/2, -length/2),
+            SCNVector3( width/2, -height/2,  length/2),
+            SCNVector3(-width/2, -height/2,  length/2),
+            SCNVector3(-width/2,  height/2, -length/2),
+            SCNVector3( width/2,  height/2, -length/2),
+            SCNVector3( width/2,  height/2,  length/2),
+            SCNVector3(-width/2,  height/2,  length/2)
+        ]
+        
+        // 线的连接索引（每两个索引代表一条线段）
+        let indices: [UInt32] = [
+            0,1, 1,2, 2,3, 3,0, // Bottom edges
+            4,5, 5,6, 6,7, 7,4, // Top edges
+            0,4, 1,5, 2,6, 3,7  // Vertical edges
+        ]
+        
+        // 创建几何数据
+        let vertexSource = SCNGeometrySource(vertices: vertices)
+        let indexData = Data(bytes: indices, count: indices.count * MemoryLayout<UInt32>.size)
+        let element = SCNGeometryElement(data: indexData,
+                                         primitiveType: .line, // 线段
+                                         primitiveCount: indices.count / 2,
+                                         bytesPerIndex: MemoryLayout<UInt32>.size)
+        
         let geometry = SCNGeometry(sources: [vertexSource], elements: [element])
         
         // 设置线框材质
@@ -352,71 +490,5 @@ extension FlutterArkitView: ARSCNViewDelegate, ARSessionDelegate {
         // 创建节点
         let wireframeNode = SCNNode(geometry: geometry)
         return wireframeNode
-    }
-    
-    func createWireframe2(extent: SIMD3<Float>) -> SCNNode {
-        let width = CGFloat(extent.x)
-        let height = CGFloat(extent.y)
-        let depth = CGFloat(extent.z)
-        
-        let box = SCNBox(width: width, height: height, length: depth, chamferRadius: 0)
-        let material = SCNMaterial()
-        material.diffuse.contents = UIColor.red
-        material.fillMode = .lines  // 线框模式
-        box.materials = [material]
-        
-        let boxNode = SCNNode(geometry: box)
-        return boxNode
-    }
-    
-    func detectObjects(pixelBuffer: CVPixelBuffer) {
-        print("detectObjects")
-        let request = VNCoreMLRequest(model: visionModel) { request, error in
-            guard let results = request.results as? [VNClassificationObservation],
-                    let firstResult = results.first else {
-                return
-            }
-            
-            // 获取最高置信度的物体
-            let objectName = firstResult.identifier
-            let confidence = firstResult.confidence
-            
-            DispatchQueue.main.async {
-                self.displayDetectedObject(name: objectName, confidence: confidence)
-            }
-        }
-        
-        // 运行 Vision 物体检测
-        let handler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, options: [:])
-        DispatchQueue.global(qos: .userInteractive).async {
-            do {
-                try handler.perform([request])
-            } catch {
-                print("Vision 物体检测失败: \(error)")
-            }
-        }
-    }
-    
-    func displayDetectedObject(name: String, confidence: Float) {
-        print("displayDetectedObject")
-        // 1. 创建文本几何体
-        let textGeometry = SCNText(string: "\(name) (\(Int(confidence * 100))%)", extrusionDepth: 0.1)
-        textGeometry.firstMaterial?.diffuse.contents = UIColor.red
-        
-        // 2. 创建文本节点
-        let textNode = SCNNode(geometry: textGeometry)
-        textNode.scale = SCNVector3(0.002, 0.002, 0.002)  // 缩小以适应 AR 画面
-        
-        // 3. 设置文本节点的位置（固定在摄像头前方）
-        let cameraTransform = sceneView.session.currentFrame?.camera.transform
-        let position = SCNVector3(
-            x: cameraTransform?.columns.3.x ?? 0,
-            y: cameraTransform?.columns.3.y ?? 0 - 0.1,  // 稍微往下偏移
-            z: cameraTransform?.columns.3.z ?? 0 - 0.5   // 距离摄像头 0.5m
-        )
-        textNode.position = position
-        
-        // 4. 添加到场景
-        sceneView.scene.rootNode.addChildNode(textNode)
     }
 }

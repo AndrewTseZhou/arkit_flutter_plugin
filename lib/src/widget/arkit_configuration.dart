@@ -23,4 +23,6 @@ enum ARKitConfiguration {
   /// A configuration for running world tracking, but with scene depth.
   /// Provide your app with the distance between the user's device and the real-world objects in the camera feed. ARKit samples this distance using the LiDAR scanner.
   depthTracking,
+
+  objectTracking,
 }

@@ -42,6 +42,7 @@ class _CustomObjectPageState extends State<CustomObjectPage> {
               showWorldOrigin: false,
               enableTapRecognizer: true,
               enablePanRecognizer: true,
+              enableRotationRecognizer: true,
               environmentTexturing: ARWorldTrackingConfigurationEnvironmentTexturing.automatic,
               planeDetection: ARPlaneDetection.horizontalAndVertical,
               onARKitViewCreated: onARKitViewCreated,
